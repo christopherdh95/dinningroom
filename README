@@ -1,0 +1,127 @@
+package edu.hm.kaminski.vss.philosophen.rmi.clientProgram;
+
+import java.rmi.NotBoundException;
+import java.rmi.RemoteException;
+import java.util.ArrayList;
+
+import edu.hm.kaminski.vss.philosophen.rmi.common.CommonDiningRoom;
+import edu.hm.kaminski.vss.philosophen.rmi.common.CommonMonitor;
+import edu.hm.kaminski.vss.philosophen.rmi.common.Fork;
+import edu.hm.kaminski.vss.philosophen.rmi.common.Master;
+import edu.hm.kaminski.vss.philosophen.rmi.common.Philosopher;
+import edu.hm.kaminski.vss.philosophen.rmi.common.Place;
+
+
+/**
+ * 
+ * This class represents a DiningRoom for the philosopher problem.
+ * 
+ * @author Kaminski Andrea, Ellmeier Stefan
+ *
+ */
+class DiningRoom extends CommonDiningRoom {
+
+	/** For serialization. */
+	private static final long serialVersionUID = 5535452434395553409L;
+
+	/** Monitor for starting all the sent Philosophers. */
+	protected static final CommonMonitor startPhilosophersMonitor = new CommonMonitor();
+
+	/**
+	 * Ctor. Create a DiningRoom with given number of tables and given number of
+	 * places per table.
+	 * 
+	 * @param numPlacesAtTable
+	 *            The number of places to create per table.
+	 */
+	public DiningRoom() throws RemoteException, NotBoundException {
+		ClientMain.logger().info(System.currentTimeMillis() + "#" + "*****Create DinnerRoom");
+	}
+
+	@Override
+	public void releaseRemoteFork(int forkID) throws RemoteException {
+		for (Fork f : getMyForks()) {
+			if (f.id() == forkID) {
+				f.release();
+				break;
+			}
+		}
+	}
+
+	@Override
+	public void removeFromLocalLists(Philosopher p) {
+		ClientMain.getMaster().endObservation(p);
+		removeFromMyPhilosophers(p);
+		p.setDiningRoom(null);
+	}
+
+	@Override
+	public boolean running() {
+		return ClientMain.running;
+	}
+
+	@Override
+	public void logInfo(String str) {
+		ClientMain.logger().info(str);
+	}
+
+	@Override
+	public CommonMonitor getStoppingMonitor() {
+		return ClientMain.stoppingMonitor;
+	}
+
+	@Override
+	public Master getMaster() {
+		return ClientMain.getMaster();
+	}
+
+	@Override
+	public CommonMonitor getNextMonitorForPhilosopher() {
+		return ClientMain.getNextMonitorForPhilosopher();
+	}
+
+	@Override
+	public void addMonitor(final CommonMonitor m) {
+		ClientMain.addMonitor(m);
+	}
+
+	public ArrayList<CommonMonitor> getMonitors() {
+		return ClientMain.getMonitors();
+	}
+
+	@Override
+	public void sendPhilosopherHalt() throws RemoteException {
+		synchronized (getMyPhilosophers()) {
+			if (getMyPhilosophers().size() > 0) {
+				getMyPhilosophers().get(0).halt();
+				getMyPhilosophers().get(0).setReadyToSwap(false);
+			}
+		}
+	}
+
+	@Override
+	public void sendProgramHalt() throws RemoteException {
+		synchronized (ClientMain.stoppingMonitor) {
+			ClientMain.stoppingMonitor.notifyAll();
+		}
+	}
+
+	@Override
+	public void splitPhilosophers(ArrayList<Philosopher> philos) throws RemoteException {
+		super.splitPhilosophers(philos);
+
+		ClientMain.putOwnPhilosophersUnderObservation(getMyPhilosophers());
+	}
+
+	@Override
+	public void createTable(ArrayList<Place> allPlaces, ArrayList<Fork> allForks, ArrayList<Philosopher> allPhilos,
+			ArrayList<Place> yourPlaces, ArrayList<Fork> yourForks, ArrayList<Philosopher> yourPhilos)
+			throws RemoteException {
+		super.createTable(allPlaces, allForks, allPhilos, yourPlaces, yourForks, yourPhilos);
+
+		synchronized (startPhilosophersMonitor) {
+			startPhilosophersMonitor.notifyAll();
+		}
+	}
+
+}
